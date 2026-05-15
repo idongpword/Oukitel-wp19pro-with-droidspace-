@@ -34,18 +34,17 @@ jobs:
           echo "PATH=$PWD/clang/bin:$PATH" >> $GITHUB_ENV
 
       - name: Configure kernel
-        run: |
-          make O=out ARCH=arm64 gki_defconfig
+  run: |
+    make O=out ARCH=arm64 gki_defconfig
+    scripts/config --file out/.config -d WERROR
+    make O=out ARCH=arm64 olddefconfig
 
       - name: Build kernel
-        run: |
-          make -j$(nproc --all) \
-          O=out \
-          ARCH=arm64 \
-          CC=clang \
-          LD=ld.lld \
-          LLVM=1 \
-          LLVM_IAS=1
+  run: |
+    make O=out ARCH=arm64 olddefconfig
+    make -j$(nproc --all) \
+      O=out \
+      ARCH=arm64
 
       - name: Upload Image
         uses: actions/upload-artifact@v4
