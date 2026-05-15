@@ -36,12 +36,11 @@ jobs:
       - name: Configure kernel
   run: |
     make O=out ARCH=arm64 gki_defconfig
-    scripts/config --file out/.config -d WERROR
+    ./scripts/config --file out/.config -d WERROR
     make O=out ARCH=arm64 olddefconfig
-
-      - name: Build kernel
+    
+- name: Build kernel
   run: |
-    make O=out ARCH=arm64 olddefconfig
     make -j$(nproc --all) \
       O=out \
       ARCH=arm64
