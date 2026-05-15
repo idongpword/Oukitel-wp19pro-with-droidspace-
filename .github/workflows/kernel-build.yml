@@ -3,7 +3,7 @@ name: Android Kernel Build
 on:
   push:
     branches:
-      - "**"
+      - '**'
   workflow_dispatch:
 
 jobs:
@@ -20,7 +20,8 @@ jobs:
           sudo apt install -y \
           git bc bison flex build-essential \
           zip curl zstd cpio libssl-dev \
-          libelf-dev python3 clang lld llvm
+          libelf-dev python3 clang lld llvm \
+          gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
       - name: Clone Proton Clang
         run: |
@@ -34,22 +35,31 @@ jobs:
           echo "PATH=$PWD/clang/bin:$PATH" >> $GITHUB_ENV
 
       - name: Configure kernel
-  run: |
-    make O=out ARCH=arm64 gki_defconfig
-    ./scripts/config --file out/.config -d WERROR
-    make O=out ARCH=arm64 olddefconfig
-    
-- name: Build kernel
-  run: |
-    make -j$(nproc --all) \
-      O=out \
-      ARCH=arm64
+        run: |
+          make O=out ARCH=arm64 gki_defconfig
+          ./scripts/config --file out/.config -d WERROR
+          make O=out ARCH=arm64 olddefconfig
 
-      - name: Upload Image
+      - name: Build kernel
+        run: |
+          make -j$(nproc --all) \
+          O=out \
+          ARCH=arm64 \
+          CC=clang \
+          LD=ld.lld \
+          AR=llvm-ar \
+          NM=llvm-nm \
+          OBJCOPY=llvm-objcopy \
+          OBJDUMP=llvm-objdump \
+          STRIP=llvm-strip \
+          CROSS_COMPILE=aarch64-linux-gnu- \
+          CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+
+      - name: Upload Kernel
         uses: actions/upload-artifact@v4
         with:
           name: Kernel
           path: |
             out/arch/arm64/boot/Image*
             out/arch/arm64/boot/*.dtb
-            out/arch/arm64/boot/dts/**/*.dtb
+            out/arch/arm64/boot/dts/**/*.dtb*
