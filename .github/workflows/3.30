@@ -1,0 +1,85 @@
+name: Android Kernel Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - '*'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y \
+        git bc bison flex build-essential zip curl \
+        libssl-dev libelf-dev python3 clang lld llvm \
+        cpio pahole dwarves
+
+    - name: Clone Proton Clang
+      run: |
+        git clone --depth=1 \
+        https://github.com/kdrag0n/proton-clang.git clang
+
+    - name: Export environment
+      run: |
+        echo "ARCH=arm64" >> $GITHUB_ENV
+        echo "SUBARCH=arm64" >> $GITHUB_ENV
+        echo "PATH=$PWD/clang/bin:$PATH" >> $GITHUB_ENV
+
+    - name: Apply KABI patches
+      run: |
+        if [ -d patches ]; then
+          for p in patches/*.patch; do
+            [ -f "$p" ] || continue
+            echo "Applying $p"
+            git apply "$p" || exit 1
+          done
+        else
+          echo "No patches folder found"
+        fi
+
+    - name: Configure kernel
+      run: |
+        mkdir -p out
+
+        make O=out \
+        ARCH=arm64 \
+        CC=clang \
+        LLVM=1 \
+        gki_defconfig
+
+        make O=out \
+        ARCH=arm64 \
+        olddefconfig
+
+    - name: Build kernel
+      run: |
+        make -j$(nproc --all) \
+        O=out \
+        ARCH=arm64 \
+        CC=clang \
+        LLVM=1 \
+        LLVM_IAS=1 \
+        CROSS_COMPILE=aarch64-linux-gnu- \
+        CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+
+    - name: Verify output
+      run: |
+        ls -lah out/arch/arm64/boot/
+
+    - name: Upload Image
+      uses: actions/upload-artifact@v4
+      with:
+        name: Kernel
+        path: |
+          out/arch/arm64/boot/Image*
+          out/arch/arm64/boot/*.dtb
+          out/arch/arm64/boot/dts/**/*.dtb
+          out/arch/arm64/boot/dts/**/*.dtbo
